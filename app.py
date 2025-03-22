@@ -89,14 +89,17 @@
 
 
 
-from dotenv import load_dotenv
-import base64
-import streamlit as st
+
+
 import os
 import io
-from PIL import Image
+import base64
+import platform
+import streamlit as st
 import pdf2image
 import google.generativeai as genai
+from dotenv import load_dotenv
+from PIL import Image
 
 # Load environment variables
 load_dotenv()
@@ -104,8 +107,11 @@ load_dotenv()
 # Configure Google Gemini API
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Path to Poppler (required for Windows users)
-POPPLER_PATH = r"C:\Program Files (x86)\poppler\Library\bin"
+# Automatically detect OS and set Poppler path
+if platform.system() == "Windows":
+    POPPLER_PATH = r"C:\Program Files (x86)\poppler\Library\bin"
+else:
+    POPPLER_PATH = "/usr/bin"  # Correct path for Linux (Streamlit Cloud)
 
 def get_gemini_response(input, pdf_content, prompt):
     model = genai.GenerativeModel('gemini-pro-vision')
@@ -114,23 +120,27 @@ def get_gemini_response(input, pdf_content, prompt):
 
 def input_pdf_setup(uploaded_file):
     if uploaded_file is not None:
-        # Convert the PDF to images using poppler_path
-        images = pdf2image.convert_from_bytes(uploaded_file.read(), poppler_path=POPPLER_PATH)
+        try:
+            # Convert the PDF to images using Poppler
+            images = pdf2image.convert_from_bytes(uploaded_file.read(), poppler_path=POPPLER_PATH)
+            
+            first_page = images[0]
 
-        first_page = images[0]
+            # Convert first page to bytes
+            img_byte_arr = io.BytesIO()
+            first_page.save(img_byte_arr, format='JPEG')
+            img_byte_arr = img_byte_arr.getvalue()
 
-        # Convert first page to bytes
-        img_byte_arr = io.BytesIO()
-        first_page.save(img_byte_arr, format='JPEG')
-        img_byte_arr = img_byte_arr.getvalue()
-
-        pdf_parts = [
-            {
-                "mime_type": "image/jpeg",
-                "data": base64.b64encode(img_byte_arr).decode()  # Encode to base64
-            }
-        ]
-        return pdf_parts
+            pdf_parts = [
+                {
+                    "mime_type": "image/jpeg",
+                    "data": base64.b64encode(img_byte_arr).decode()  # Encode to base64
+                }
+            ]
+            return pdf_parts
+        except Exception as e:
+            st.error(f"Error processing PDF: {e}")
+            return None
     else:
         raise FileNotFoundError("No file uploaded")
 
@@ -168,21 +178,22 @@ the job description. First, the output should come as a percentage, followed by 
 if submit1:
     if uploaded_file is not None:
         pdf_content = input_pdf_setup(uploaded_file)
-        response = get_gemini_response(input_prompt1, pdf_content, input_text)
-        st.subheader("The Response is:")
-        st.write(response)
+        if pdf_content:
+            response = get_gemini_response(input_prompt1, pdf_content, input_text)
+            st.subheader("The Response is:")
+            st.write(response)
     else:
         st.write("Please upload the resume")
 
 elif submit3:
     if uploaded_file is not None:
         pdf_content = input_pdf_setup(uploaded_file)
-        response = get_gemini_response(input_prompt3, pdf_content, input_text)
-        st.subheader("The Response is:")
-        st.write(response)
+        if pdf_content:
+            response = get_gemini_response(input_prompt3, pdf_content, input_text)
+            st.subheader("The Response is:")
+            st.write(response)
     else:
         st.write("Please upload the resume")
-
 
 
 
