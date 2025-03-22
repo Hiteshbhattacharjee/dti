@@ -353,7 +353,7 @@ else:
 # Function to send request to Google Gemini API
 def get_gemini_response(input_text, pdf_content, prompt):
     try:
-        model = genai.GenerativeModel('gemini-pro-vision')
+        model = genai.GenerativeModel('gemini-1.5-flash')
 
         st.write("⏳ Sending request to Google Gemini API...")
         start_time = time.time()
